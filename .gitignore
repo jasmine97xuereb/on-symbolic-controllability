@@ -69,6 +69,7 @@ doc/
 
 # ocaml generated file. 
 *.native
+*.data
 
 # virtual environment.
 venv/
