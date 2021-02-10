@@ -32,35 +32,47 @@ let verdict v = match v with
 let choice lt rt = Monitor.Choice {
   Monitor.Choice.left = lt;
   Monitor.Choice.right = rt;
+  Monitor.Choice.verdict = true;
+  Monitor.Choice.brc = true;
 }
 
 let expression_guard label payload cons = Monitor.ExpressionGuard {
   Monitor.ExpressionGuard.label = label;
   Monitor.ExpressionGuard.payload = payload;
   Monitor.ExpressionGuard.consume = cons;
+  Monitor.ExpressionGuard.verdict = true;
+  Monitor.ExpressionGuard.brc = true;
 }
 
 let quantified_guard label payload cons = Monitor.QuantifiedGuard {
   Monitor.QuantifiedGuard.label = label;
   Monitor.QuantifiedGuard.payload = payload;
   Monitor.QuantifiedGuard.consume = cons;
+  Monitor.QuantifiedGuard.verdict = true;
+  Monitor.QuantifiedGuard.brc = true;
 }
 
 let if_then_else_exp cond if_tr if_fls = Monitor.Conditional {
   Monitor.Conditional.condition = cond;
   Monitor.Conditional.if_true = if_tr;
   Monitor.Conditional.if_false = if_fls;
+  Monitor.Conditional.verdict = true;
+  Monitor.Conditional.brc = true;
 }
 
 let let_in v sub expr = Monitor.Evaluate {
   Monitor.Evaluate.var = v;
   Monitor.Evaluate.subst = sub;
   Monitor.Evaluate.stmt = expr;
+  Monitor.Evaluate.verdict = true;
+  Monitor.Evaluate.brc = true;
 }
 
 let recX mv cons = Monitor.Recurse {
   Monitor.Recurse.monvar = mv;
   Monitor.Recurse.consume = cons;
+  Monitor.Recurse.verdict = false;
+  Monitor.Recurse.brc = true;
 }
 
 %}

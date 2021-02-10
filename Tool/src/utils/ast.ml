@@ -10,7 +10,23 @@ and Identifier : sig
   }
 end = Identifier
 
+(* 
+and Truth : sig
+  type t =
+    | TRUE
+    | FALSE
+    | UNDECIDED
+end = Truth *)
+
 and Expression : sig
+  module ExpressionTree : sig
+    type t = {
+      cond: Expression.t;
+      if_true: Expression.t list;
+      if_false: Expression.t list;
+    }
+  end
+
   module UnaryExp : sig
     type operator =
       | Not
@@ -48,6 +64,7 @@ and Expression : sig
     | Literal of Literal.t
     | BinaryExp of BinaryExp.t
     | UnaryExp of UnaryExp.t
+    | ExpressionTree of ExpressionTree.t
 end = Expression
 
 and TVar : sig
@@ -74,6 +91,10 @@ and Monitor : sig
       label: Identifier.t;
       payload: Expression.t;
       consume: Monitor.t;
+      (* verdict: Truth.t; *)
+      (* brc: Truth.t; *)
+      verdict: bool;
+      brc: bool;
     }
   end
 
@@ -82,6 +103,10 @@ and Monitor : sig
       label: Identifier.t;
       payload: Expression.t;
       consume: Monitor.t;
+      (* verdict: Truth.t;
+      brc: Truth.t; *)
+      verdict: bool;
+      brc: bool;
     }
   end
 
@@ -89,6 +114,10 @@ and Monitor : sig
     type t = {
       left: Monitor.t;
       right: Monitor.t;
+      (* verdict: Truth.t;
+      brc: Truth.t; *)
+      verdict: bool;
+      brc: bool;
     }
   end
 
@@ -97,6 +126,10 @@ and Monitor : sig
       condition: Expression.t;
       if_true: Monitor.t;
       if_false: Monitor.t;
+      (* verdict: Truth.t;
+      brc: Truth.t; *)
+      verdict: bool;
+      brc: bool;
     }
   end
 
@@ -105,6 +138,10 @@ and Monitor : sig
       var: Expression.t;
       subst: Expression.t;
       stmt: Monitor.t;
+      (* verdict: Truth.t;
+      brc: Truth.t; *)
+      verdict: bool;
+      brc: bool;
     }
   end
 
@@ -112,6 +149,10 @@ and Monitor : sig
     type t = {
       monvar: TVar.t;
       consume: Monitor.t;
+      (* verdict: Truth.t;
+      brc: Truth.t; *)
+      verdict: bool;
+      brc: bool;
     }
   end
 

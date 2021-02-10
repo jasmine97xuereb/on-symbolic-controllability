@@ -26,7 +26,7 @@ Library "definitions"
 
 Library "symcontrollability"
     Path: src/definitions/symbolic-controllability
-    Modules: SymResources, SymTransitions, SymRelation, SymEventGenerator, SatFunction
+    Modules: SymResources, SymTransitions, SymRelation, SymEventGenerator, SatFunction, SymFunctions, ReachRelation, ReachResources
     BuildDepends: utils, z3, zarith, parsing, definitions
 
 Executable "main"

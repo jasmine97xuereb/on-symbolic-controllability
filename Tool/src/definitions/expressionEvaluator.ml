@@ -9,6 +9,7 @@ let rec reduce_expression (exp: Ast.Expression.t): expression_type =
     | Ast.Expression.Literal(x) -> reduce_literal x
     | Ast.Expression.BinaryExp(x) -> reduce_binaryexp x
     | Ast.Expression.UnaryExp(x) -> reduce_unaryexp x 
+    | _ -> ERR("Unknown Expression Type\n")
 
 and reduce_identifier (idt: Ast.Identifier.t): expression_type =
   STRING(idt.name)
@@ -73,19 +74,19 @@ and reduce_unaryexp (tree: Ast.Expression.UnaryExp.t): expression_type =
     | BOOL(x) -> BOOL(not x)
     | _ -> ERR("Expression cannot be negated. Type error\n")
 
-module BoundVarTypes = struct
+(* module BoundVarTypes = struct
   type t = Ast.Expression.t
   let compare (x:t) (y:t): int = compare (reduce_expression x) (reduce_expression y)
 end
 
-module BoundVars = Set.Make(BoundVarTypes)
+module BoundVars = Set.Make(BoundVarTypes) *)
 
 (*reference to a set of bound expressions*)
 let bound_vars = ref BoundVars.empty
 let mapTVar = ref TVars.empty
   
 let rec substitute_expression (exp: Ast.Expression.t) (y: Ast.Expression.t) (to_sub: Ast.Expression.t): Ast.Expression.t = 
-  let get_val (to_sub:Ast.Expression.t) = 
+  let get_val (to_sub: Ast.Expression.t) = 
     match reduce_expression to_sub  with 
     | INT(x) -> Ast.Expression.Literal(Ast.Literal.Int(x))
     | BOOL(x) -> Ast.Expression.Literal(Ast.Literal.Bool(x))
@@ -101,6 +102,7 @@ let rec substitute_expression (exp: Ast.Expression.t) (y: Ast.Expression.t) (to_
     | Ast.Expression.BinaryExp(x) -> 
       add_binary_condition (substitute_expression x.arg_lt y to_sub) (substitute_expression x.arg_rt y to_sub) x.operator
     | Ast.Expression.UnaryExp(x) -> add_unary_condition (substitute_expression x.arg y to_sub)
+    | Ast.Expression.ExpressionTree(x) -> add_expression_tree (substitute_expression x.cond y to_sub) (List.map (fun x -> substitute_expression x y to_sub) x.if_true) (List.map (fun x -> substitute_expression x y to_sub) x.if_false)
 
 (*substitute all free occurences of tvar by new_tvar*)
 let rec substitute_tvar (mon: Ast.Monitor.t) (monvar: Ast.TVar.t) (new_tvar: Ast.TVar.t): Ast.Monitor.t = 
@@ -108,31 +110,31 @@ let rec substitute_tvar (mon: Ast.Monitor.t) (monvar: Ast.TVar.t) (new_tvar: Ast
   | Ast.Monitor.Verdict(x) -> 
     mon
   | Ast.Monitor.Choice(x) -> 
-    create_choice_mon (substitute_tvar x.left monvar new_tvar) (substitute_tvar x.right monvar new_tvar)
+    create_choice_mon (substitute_tvar x.left monvar new_tvar) (substitute_tvar x.right monvar new_tvar) x.verdict x.brc
   | Ast.Monitor.ExpressionGuard(x) -> 
-    create_exp_guard_mon x.label x.payload (substitute_tvar x.consume monvar new_tvar)    
+    create_exp_guard_mon x.label x.payload (substitute_tvar x.consume monvar new_tvar) x.verdict x.brc    
   | Ast.Monitor.QuantifiedGuard(x) -> 
-    create_quant_guard_mon x.label x.payload (substitute_tvar x.consume monvar new_tvar)    
+    create_quant_guard_mon x.label x.payload (substitute_tvar x.consume monvar new_tvar) x.verdict x.brc   
   | Ast.Monitor.Conditional(x) -> 
-    create_conditional_mon x.condition (substitute_tvar x.if_true monvar new_tvar) (substitute_tvar x.if_false monvar new_tvar)
+    create_conditional_mon x.condition (substitute_tvar x.if_true monvar new_tvar) (substitute_tvar x.if_false monvar new_tvar) x.verdict x.brc
   | Ast.Monitor.TVar(x) -> 
     create_tvar new_tvar.tvar
   | Ast.Monitor.Recurse(x) ->  
     (*stop in case of tvariable shadowing*)
     if x.monvar.tvar == new_tvar.tvar
-    then create_recurse_mon x.monvar x.consume
-    else create_recurse_mon x.monvar (substitute_tvar x.consume monvar new_tvar)
+    then create_recurse_mon x.monvar x.consume x.verdict x.brc
+    else create_recurse_mon x.monvar (substitute_tvar x.consume monvar new_tvar) x.verdict x.brc
   | Ast.Monitor.Evaluate(x) -> 
-    create_evaluate_mon x.var x.subst (substitute_tvar x.stmt monvar new_tvar)   
+    create_evaluate_mon x.var x.subst (substitute_tvar x.stmt monvar new_tvar) x.verdict x.brc  
 
 (*substitues all free occurences of y by to_sub*)
 let rec inner_sub_eval (mon: Ast.Monitor.t) (y) (to_sub): Ast.Monitor.t =
    match mon with 
    | Ast.Monitor.Verdict(x) -> mon
    | Ast.Monitor.Choice(x) -> 
-      create_choice_mon (inner_sub_eval x.left y to_sub) (inner_sub_eval x.right y to_sub)
+      create_choice_mon (inner_sub_eval x.left y to_sub) (inner_sub_eval x.right y to_sub) x.verdict x.brc
    | Ast.Monitor.ExpressionGuard(x) -> 
-      create_exp_guard_mon x.label (substitute_expression x.payload y to_sub) (inner_sub_eval x.consume y to_sub)    
+      create_exp_guard_mon x.label (substitute_expression x.payload y to_sub) (inner_sub_eval x.consume y to_sub) x.verdict x.brc    
    | Ast.Monitor.QuantifiedGuard(x) -> 
       if compare_values (reduce_expression x.payload) (reduce_expression y)
       then(
@@ -140,21 +142,21 @@ let rec inner_sub_eval (mon: Ast.Monitor.t) (y) (to_sub): Ast.Monitor.t =
         then mon
         else (
           bound_vars := BoundVars.add x.payload !bound_vars;
-          create_quant_guard_mon x.label (substitute_expression x.payload y to_sub) (inner_sub_eval x.consume y to_sub)
+          create_quant_guard_mon x.label (substitute_expression x.payload y to_sub) (inner_sub_eval x.consume y to_sub) x.verdict x.brc
         )
       )
-      else create_quant_guard_mon x.label x.payload (inner_sub_eval x.consume y to_sub)
+      else create_quant_guard_mon x.label x.payload (inner_sub_eval x.consume y to_sub) x.verdict x.brc
 
    | Ast.Monitor.Conditional(x) -> 
-      create_conditional_mon (substitute_expression x.condition y to_sub) (inner_sub_eval x.if_true y to_sub) (inner_sub_eval x.if_false y to_sub)
+      create_conditional_mon (substitute_expression x.condition y to_sub) (inner_sub_eval x.if_true y to_sub) (inner_sub_eval x.if_false y to_sub) x.verdict x.brc
    | Ast.Monitor.TVar(x) -> mon
-   | Ast.Monitor.Recurse(x) -> create_recurse_mon x.monvar (inner_sub_eval x.consume y to_sub)
+   | Ast.Monitor.Recurse(x) -> create_recurse_mon x.monvar (inner_sub_eval x.consume y to_sub) x.verdict x.brc
    | Ast.Monitor.Evaluate(x) ->  
       (*check if the var is equal to y (the var we want to sub), if yes then stop, else continue substituting*)
       (*in the case where m = let x=2 in let x=x+3 in ... the x of let x=x+3 is bound to the outer let *)
       if compare_values (reduce_expression x.var) (reduce_expression y) 
-      then create_evaluate_mon x.var (substitute_expression x.subst y to_sub) x.stmt
-      else create_evaluate_mon x.var (substitute_expression x.subst y to_sub) (inner_sub_eval x.stmt y to_sub)    
+      then create_evaluate_mon x.var (substitute_expression x.subst y to_sub) x.stmt x.verdict x.brc
+      else create_evaluate_mon x.var (substitute_expression x.subst y to_sub) (inner_sub_eval x.stmt y to_sub) x.verdict x.brc   
 
   let rec inner_sub_rec (mon: Ast.Monitor.t) (y: Ast.TVar.t) (to_sub: Ast.Monitor.t) = 
     match mon with 
@@ -167,15 +169,15 @@ let rec inner_sub_eval (mon: Ast.Monitor.t) (y) (to_sub): Ast.Monitor.t =
         | None -> mon)
       else mon
     | Ast.Monitor.QuantifiedGuard(x) -> 
-      create_quant_guard_mon x.label x.payload (inner_sub_rec x.consume y to_sub)
+      create_quant_guard_mon x.label x.payload (inner_sub_rec x.consume y to_sub) x.verdict x.brc
     | Ast.Monitor.ExpressionGuard(x) -> 
-      create_exp_guard_mon x.label x.payload (inner_sub_rec x.consume y to_sub)
+      create_exp_guard_mon x.label x.payload (inner_sub_rec x.consume y to_sub) x.verdict x.brc
     | Ast.Monitor.Choice(x) ->
-      create_choice_mon (inner_sub_rec x.left y to_sub) (inner_sub_rec x.right y to_sub)
+      create_choice_mon (inner_sub_rec x.left y to_sub) (inner_sub_rec x.right y to_sub) x.verdict x.brc
     | Ast.Monitor.Conditional(x) -> 
-      create_conditional_mon x.condition (inner_sub_rec x.if_true y to_sub) (inner_sub_rec x.if_false y to_sub)
+      create_conditional_mon x.condition (inner_sub_rec x.if_true y to_sub) (inner_sub_rec x.if_false y to_sub) x.verdict x.brc
     | Ast.Monitor.Evaluate(x) ->  
-      create_evaluate_mon x.var x.subst (inner_sub_rec x.stmt y to_sub)
+      create_evaluate_mon x.var x.subst (inner_sub_rec x.stmt y to_sub) x.verdict x.brc
     | Ast.Monitor.Recurse(x) ->
       (match TVars.find_opt x.monvar.tvar !mapTVar with
       | None -> 

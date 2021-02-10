@@ -8,6 +8,8 @@ open SymResources
 open EnvFunctions
 open ExpressionEvaluator
 open VisibilityLevel
+open ReachRelation
+open ReachResources
 
 let parse_mon m = Parser.monitor Lexer.token (from_string m)
 
@@ -58,7 +60,14 @@ let main =
       (*make sure that all recursion variables are only bound once - otherwise rename them*)
       let final_mon_list = List.map (fun m -> rename_monvar m BoundTVars.empty) parsed_monitor_list in
         print_warnings ("After renaming bound tvariables, the monitor is " ^ pretty_print_monitor_list_string final_mon_list);
-        
+        let final_mon_list = List.map (fun m -> (populate m)) final_mon_list in 
+        print_warnings ("After populating, the monitor is " ^ pretty_print_monitor_list_string final_mon_list);
+
+        (* exit 0; *)
+        (* print_endline ("FIRST PASS"); *)
+        (* let new_mon = first_pass [] (List.hd final_mon_list) *)
+        (* in print_endline(pretty_print_monitor_list_string [new_mon]); *)
+
       print_all_messages ("SYMBOLIC CONTROLLABILITY:");
       let time_taken = time_it check_sym_controllability final_mon_list
         in print_basic ("time taken is " ^ string_of_float time_taken ^ " seconds");

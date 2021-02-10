@@ -6,20 +6,6 @@ open PrettyPrint
 (*mutable data structure to be used for generating the next fresh tvariable - used in rename_monvar function*)
 let tvar_counter = ref 0 
 
-(* set structure for identifiers - used in fv() function *)
-module VarTypes = struct
-  type t = Ast.Identifier.t
-  let compare (x:t) (y:t): int = compare x y
-end
-module Vars = Set.Make(VarTypes)
-
-(*used to check in the main module to rename bound tvars*)
-module TVarTypes = struct
-  type t = Ast.TVar.t
-  let compare (x:t) (y:t): int = compare x y
-end 
-module BoundTVars = Set.Make(TVarTypes)
-
 (*map that stores mappings from TVars to their respective free variables*)
 let mapTVarFv = ref TVars.empty
 
@@ -95,7 +81,8 @@ and fv_exp (e_list: Ast.Expression.t list) (var_set: Vars.t) (tvars_checked: Ast
         | Ast.Expression.Identifier(x) -> fv_exp exps (Vars.add x var_set) tvars_checked
         | Ast.Expression.Literal(x) -> fv_exp exps var_set tvars_checked
         | Ast.Expression.BinaryExp(x) -> fv_exp exps (Vars.union (fv_exp [x.arg_rt] var_set tvars_checked) (fv_exp [x.arg_lt] var_set tvars_checked)) tvars_checked
-        | Ast.Expression.UnaryExp(x) -> fv_exp exps (fv_exp [x.arg] var_set tvars_checked) tvars_checked)
+        | Ast.Expression.UnaryExp(x) -> fv_exp exps (fv_exp [x.arg] var_set tvars_checked) tvars_checked
+        | _ -> var_set )
 
 (*function to calculate the set of bound tvariables (recursion variables) in a monitor list*)
 let rec btv (cms: Ast.Monitor.t list) (bound_set: BoundTVars.t): BoundTVars.t = 
@@ -118,27 +105,27 @@ that were already bound to some other recursion monitor*)
 let rec rename_monvar (m: Ast.Monitor.t) (bound: BoundTVars.t): Ast.Monitor.t = 
   match m with 
   | Ast.Monitor.QuantifiedGuard(x) -> 
-    create_quant_guard_mon x.label x.payload (rename_monvar x.consume bound)
+    create_quant_guard_mon x.label x.payload (rename_monvar x.consume bound) x.verdict x.brc
   | Ast.Monitor.ExpressionGuard(x) -> 
-    create_exp_guard_mon x.label x.payload (rename_monvar x.consume bound) 
+    create_exp_guard_mon x.label x.payload (rename_monvar x.consume bound) x.verdict x.brc
   | Ast.Monitor.Choice(x) ->
     (*check lhs and then get all the bound vars*)
     let left_mon = (rename_monvar x.left bound) in
-      create_choice_mon left_mon (rename_monvar x.right (btv [left_mon] bound))
+      create_choice_mon left_mon (rename_monvar x.right (btv [left_mon] bound)) x.verdict x.brc
   | Ast.Monitor.Conditional(x) ->
-    create_conditional_mon x.condition (rename_monvar x.if_true bound) (rename_monvar x.if_false bound)
+    create_conditional_mon x.condition (rename_monvar x.if_true bound) (rename_monvar x.if_false bound) x.verdict x.brc
   | Ast.Monitor.Evaluate(x) ->
-    create_evaluate_mon x.var x.subst (rename_monvar x.stmt bound) 
+    create_evaluate_mon x.var x.subst (rename_monvar x.stmt bound) x.verdict x.brc
   | Ast.Monitor.Recurse(x) -> 
     if BoundTVars.mem x.monvar bound
     then
       (*if it already bound, create a fresh tvar *)
       (let new_tvar = fresh_tvar !tvar_counter
       in incr tvar_counter; 
-      create_recurse_mon new_tvar (rename_monvar (substitute_tvar x.consume x.monvar new_tvar) (BoundTVars.add new_tvar bound))
+      create_recurse_mon new_tvar (rename_monvar (substitute_tvar x.consume x.monvar new_tvar) (BoundTVars.add new_tvar bound)) x.verdict x.brc
       )
-    else(
-      create_recurse_mon x.monvar (rename_monvar x.consume (BoundTVars.add x.monvar bound)))
+    else (
+      create_recurse_mon x.monvar (rename_monvar x.consume (BoundTVars.add x.monvar bound)) x.verdict x.brc) 
   | _ -> m
 
 (* frsh(fv(<b,M>)) deterministically returns the next fresh variable that is not in the variable set.
@@ -155,3 +142,16 @@ let fresh (free_vars: Vars.t): Ast.Identifier.t =
         )
       in generateFrsh ({Ast.Identifier.name = init_f ^ string_of_int(counter)}) counter
 
+(* function to calculate the chain of variables and values of an expression list *)
+(* it is assumed that the expr list is in dnf i.e. each expression in the list is disjuncted *)
+let rec chn (b: Ast.Expression.t): bool = 
+  match b with 
+  | Ast.Expression.BinaryExp(x) -> 
+    if x.operator == Compare || x.operator == Geq || x.operator == Leq || x.operator == Gt || x.operator == Lt
+    then match (x.arg_rt, x.arg_lt) with 
+      | (Ast.Expression.Literal(x), _) -> true
+      | (_, Ast.Expression.Literal(x)) -> true
+      | (_, _) -> (chn x.arg_rt) || (chn x.arg_lt) 
+    else (chn x.arg_rt) || (chn x.arg_lt) 
+  | Ast.Expression.UnaryExp(x) -> chn x.arg
+  | _ -> false
