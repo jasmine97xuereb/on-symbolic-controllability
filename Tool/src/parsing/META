@@ -1,0 +1,13 @@
+# OASIS_START
+# DO NOT EDIT (digest: 1d24c59e3cd52719da0c03f0c9a5114a)
+version = "0.1"
+description =
+"A parser and implementation of the definition of Symbolic Controllability proposed by Dr. Adrian Francalanza."
+requires = "utils"
+archive(byte) = "parsing.cma"
+archive(byte, plugin) = "parsing.cma"
+archive(native) = "parsing.cmxa"
+archive(native, plugin) = "parsing.cmxs"
+exists_if = "parsing.cma"
+# OASIS_STOP
+
