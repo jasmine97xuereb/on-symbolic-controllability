@@ -157,12 +157,21 @@ and print_sym_evt (tree: Ast.SymbolicEvent.t) =
   | Ast.SymbolicEvent.SymbolicEvent(x) -> " label: " ^ x.label.name ^ ", value: " ^ x.payload.name
   | Ast.SymbolicEvent.Any -> "any"*)
 
-let rec print_evt (tree:Ast.Expression.t)  =
+let rec print_evt (tree:Ast.Expression.t): string  =
   let inside_exp_to_string tree = match tree with
       | Ast.Expression.Identifier(x) -> print_identifier x 
       | Ast.Expression.Literal(x) -> print_literal x 
       | Ast.Expression.BinaryExp(x) -> print_bin_exp x 
       | Ast.Expression.UnaryExp(x) -> "(" ^ (print_unary_exp x) ^ ")" 
+      | Ast.Expression.ExpressionTree(x) -> 
+        let rec concat (ll) (final) = 
+          match ll with
+          | [] -> final
+          | l::[] -> final ^ (print_evt l)
+          | l::ls -> concat ls (final ^ (print_evt l) ^ ", ")
+        in let if_true = concat x.if_true ""
+        in let if_false = concat x.if_false ""
+        in "(" ^ print_evt x.cond ^ ") [true: " ^ if_true ^ "] [false: " ^ if_false ^ "]" 
   in inside_exp_to_string tree 
 
 and print_identifier (id: Ast.Identifier.t): string =
@@ -321,4 +330,3 @@ let rec pretty_print_monitor_list_string (monList: Ast.Monitor.t list): string =
   match monList with
     | [] -> ""
     | ml::mls -> pretty_print_monitor_string ml ^ "; " ^ pretty_print_monitor_list_string mls
-

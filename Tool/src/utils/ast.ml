@@ -11,6 +11,14 @@ and Identifier : sig
 end = Identifier
 
 and Expression : sig
+  module ExpressionTree : sig
+    type t = {
+      cond: Expression.t;
+      if_true: Expression.t list;
+      if_false: Expression.t list;
+    }
+  end
+
   module UnaryExp : sig
     type operator =
       | Not
@@ -48,6 +56,7 @@ and Expression : sig
     | Literal of Literal.t
     | BinaryExp of BinaryExp.t
     | UnaryExp of UnaryExp.t
+    | ExpressionTree of ExpressionTree.t
 end = Expression
 
 and TVar : sig
@@ -55,6 +64,13 @@ and TVar : sig
     tvar: string
   }
 end = TVar
+
+(* and ExpressionTree : sig
+  type t = {
+    if_true: Expression.t;
+    if_false: Expression.t;
+  }
+end = ExpressionTree  *)
 
 and Monitor : sig
   module Verdict : sig

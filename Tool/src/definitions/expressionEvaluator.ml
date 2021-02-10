@@ -101,7 +101,7 @@ let rec substitute_expression (exp: Ast.Expression.t) (y: Ast.Expression.t) (to_
     | Ast.Expression.BinaryExp(x) -> 
       add_binary_condition (substitute_expression x.arg_lt y to_sub) (substitute_expression x.arg_rt y to_sub) x.operator
     | Ast.Expression.UnaryExp(x) -> add_unary_condition (substitute_expression x.arg y to_sub)
-    (* | Ast.Expression.ExpressionTree(x) -> add_expression_tree (substitute_expression x.cond y to_sub) (List.map (fun x -> substitute_expression x y to_sub) x.if_true) (List.map (fun x -> substitute_expression x y to_sub) x.if_false) *)
+    | Ast.Expression.ExpressionTree(x) -> add_expression_tree (substitute_expression x.cond y to_sub) (List.map (fun x -> substitute_expression x y to_sub) x.if_true) (List.map (fun x -> substitute_expression x y to_sub) x.if_false)
 
 (*substitute all free occurences of tvar by new_tvar*)
 let rec substitute_tvar (mon: Ast.Monitor.t) (monvar: Ast.TVar.t) (new_tvar: Ast.TVar.t): Ast.Monitor.t = 
@@ -204,4 +204,33 @@ let rec check_in_list (e: Ast.Expression.t) (l: Ast.Identifier.t list): bool =
       then true
       else check_in_list e xs
     | _ -> check_in_list e xs 
- 
+  
+(*filters an expression by trying to remove all the expressions which are not in to_keep*)
+let rec filter_b (cond: Ast.Expression.t list) (to_keep: Ast.Identifier.t list) =
+  let rec inner_filter_b (cond: Ast.Expression.t list): Ast.Expression.t list =
+  match cond with
+  | [] -> []
+  | b::bs ->
+    (match b with 
+    | Ast.Expression.BinaryExp(x) -> 
+      (match x.operator with 
+      | And ->
+          (match (inner_filter_b [x.arg_lt]), (inner_filter_b [x.arg_rt]) with 
+            | [], [] -> (inner_filter_b bs)
+            | [], rt -> rt @ (inner_filter_b bs)
+            | lt, [] -> lt @ (inner_filter_b bs)
+            | lt, rt -> [add_binary_condition (List.hd lt) (List.hd rt) x.operator] @ (inner_filter_b bs)
+          )
+      | _ -> (
+          if (check_in_list x.arg_lt to_keep) || (check_in_list x.arg_rt to_keep)
+          then [b] @ (inner_filter_b bs)
+          else (inner_filter_b bs)))
+
+    | Ast.Expression.UnaryExp(x) ->
+      if check_in_list x.arg to_keep 
+      then [b] @ (inner_filter_b bs)
+      else (inner_filter_b bs)
+    | Ast.Expression.Literal(x) -> (inner_filter_b bs) (*in the case when the bool cond is true*)
+    | _ -> [b] @ (inner_filter_b bs)  
+    )
+  in inner_filter_b cond  

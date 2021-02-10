@@ -150,6 +150,13 @@ let add_unary_condition (ex: Ast.Expression.t) = Ast.Expression.UnaryExp {
   Ast.Expression.UnaryExp.arg = ex;
 }
 
+let add_expression_tree (cond: Ast.Expression.t) (if_true: Ast.Expression.t list) (if_false: Ast.Expression.t list) = 
+  Ast.Expression.ExpressionTree({
+    Ast.Expression.ExpressionTree.cond = cond;
+    Ast.Expression.ExpressionTree.if_true = if_true;
+    Ast.Expression.ExpressionTree.if_false = if_false;
+  })
+
 let rec check_sevt_exists (l: Ast.SymbolicEvent.t list) (sevt: Ast.SymbolicEvent.t): bool = 
   match l with
     | [] -> false
@@ -193,12 +200,6 @@ let rec check_exp_exists (l: Ast.Expression.t list) (evt: Ast.Expression.t): boo
     | _ -> 
       contains (pretty_print_evt_list l) (pretty_print_evt_list [evt]) 
 
-(*let rec check_exp_exists (l: Ast.Expression.t list) (evt: Ast.Expression.t): bool = 
-  print_endline ("checking ");
-  List.map (fun m -> print_expression_string m) l;
-  print_expression_string evt;
-  List.mem evt l *)
-
 let rec check_tvar_exists (l: Ast.TVar.t list) (tvar: Ast.TVar.t): bool =
     match l with 
     | [] -> false
@@ -230,6 +231,66 @@ let rec create_exp(s: string): Ast.Expression.t =
       | exception Invalid_argument _ -> create_exp_identifier s
     )
 
+(*create a list of n consecutive numbers*)
+let rec create_list (n:int): int list =
+  match n with 
+    | 0 -> []
+    | some_n -> some_n :: (create_list (n-1))  
+
+(*takes a lists of lists and a list of expressions*)
+(*adds each list in to_add to condition_list*)
+(*ex. combine [[a,b],[c,d]] [x,y,z] -> [[a,b,x,y,z], [c,d,x,y,z]] *)
+let rec combine (to_add: Ast.Expression.t list list) (condition_list: Ast.Expression.t list): Ast.Expression.t list list =
+  match to_add with 
+  | [] -> [condition_list]
+  | x::[] -> [condition_list @ x]
+  | x::xs -> [condition_list @ x] @ (combine xs condition_list)
+
+(*predicate function that takes an Ast Expressions and returns a boolean value*)
+(*if e is a an expression tree or contains an expression tree, return true, else return false*)
+let rec check_contains_expression_tree (e: Ast.Expression.t): bool = 
+  match e with 
+  | Ast.Expression.BinaryExp(x) ->
+    check_contains_expression_tree x.arg_lt && check_contains_expression_tree x.arg_rt
+  | Ast.Expression.UnaryExp(x) -> check_contains_expression_tree x.arg
+  | Ast.Expression.ExpressionTree(x) -> true 
+  | _ -> false
+
+(* computes the cartesian product of two lists using nested folds *)
+(* example: *)
+(* cart_prod [1; 2] [4; 5] -> [2^5; 2^4; 1^5; 1^4]*)
+(* cart_prod [1; 2; 3] [] -> [] *)
+(* let cart_prod (l1: Ast.Expression.t list) (l2: Ast.Expression.t list): Ast.Expression.t list =
+  (* print_messages("cartesian product of " ^ pretty_print_evt_list l1 ^ " and " ^ pretty_print_evt_list l2); *)
+  let op = Ast.Expression.BinaryExp.And in
+  List.fold_left (fun acc1 ele1 ->
+    List.fold_left (fun acc2 ele2 -> (add_binary_condition ele1 ele2 op)::acc2) acc1 l2) [] l1 ;; *)
+
+let cart_prod (l1: Ast.Expression.t list) (l2: Ast.Expression.t list): Ast.Expression.t list =
+  (* print_messages("cartesian product of " ^ pretty_print_evt_list l1 ^ " and " ^ pretty_print_evt_list l2); *)
+  let op = Ast.Expression.BinaryExp.And in
+  List.fold_right (fun ele1 acc1 ->
+    List.fold_right (fun ele2 acc2 -> (add_binary_condition ele1 ele2 op)::acc2) l2 acc1) l1 [] ;;
+
+        
+(* computes the generalised cartesian produt, i.e. A x B x C... *)
+let rec final_cart_prod (to_add: Ast.Expression.t list list): Ast.Expression.t list = 
+  match to_add with 
+  | [] -> []
+  | x::[] -> x
+  | x::xs -> cart_prod x (final_cart_prod xs)
+    
+(*predicate function that takes an Ast Expressions and returns a boolean value*)
+(*if e is a binary expression with an Equal operator, return true, else return false*)
+let check_comparison (e: Ast.Expression.t): bool = 
+  match e with
+  | Ast.Expression.BinaryExp(x) ->
+    (match x.arg_lt, x.operator, x.arg_rt with
+    | Ast.Expression.Literal(x), Compare, Ast.Expression.Identifier(y) -> true
+    | Ast.Expression.Identifier(x), Compare, Ast.Expression.Literal(y) -> true
+    | _ -> false)
+  | _ -> false
+
 (* take a list of expressions add each e,e' in l with a binary and *)
 let rec and_list (l: Ast.Expression.t list): Ast.Expression.t  = 
   let op = Ast.Expression.BinaryExp.And in 
@@ -237,9 +298,4 @@ let rec and_list (l: Ast.Expression.t list): Ast.Expression.t  =
   | [] -> Ast.Expression.Literal(Ast.Literal.Bool(true))
   | x::[] -> x
   | x::xs -> add_binary_condition x (and_list xs) op
-
-
-let compare_expressions (e1: Ast.Expression.t) (e2: Ast.Expression.t): bool =
-  match e1, e2 with
-    | Ast.Expression.Identifier(x), Ast.Expression.Identifier(y) -> x.name = y.name
-    | _ -> false   
+    
