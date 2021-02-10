@@ -74,10 +74,11 @@ and print_recurse tree tab =
 
 and print_expression tree tab =
   let inside_exp_to_string tree tab = match tree with
-      | Ast.Expression.Identifier(x) -> print_identifier x tab
-      | Ast.Expression.Literal(x) -> print_literal x tab
-      | Ast.Expression.BinaryExp(x) -> print_bin_exp x tab
-      | Ast.Expression.UnaryExp(x) -> print_unary_exp x tab
+    | Ast.Expression.Identifier(x) -> print_identifier x tab
+    | Ast.Expression.Literal(x) -> print_literal x tab
+    | Ast.Expression.BinaryExp(x) -> print_bin_exp x tab
+    | Ast.Expression.UnaryExp(x) -> print_unary_exp x tab
+    | _ -> ""
   in tabulate tab ^ "<Expression>\n" ^
       inside_exp_to_string tree (tab + 1) ^
       tabulate tab ^ "</Expression>"
@@ -145,24 +146,21 @@ let rec pretty_print_sym_event (se: Ast.SymbolicEvent.t list) =
 
 and print_sym_evt (tree: Ast.SymbolicEvent.t) = " label: " ^ tree.label.name ^ ", value: " ^ tree.payload.name
 
-(*let rec pretty_print_sym_event (se: Ast.SymbolicEvent.t list) =
-  let rec string_symevt_list symevt out = match symevt with
-      [] -> out
-    | [s] -> (out ^ print_sym_evt s)
-    | s::ss -> string_symevt_list ss (out ^ print_sym_evt s ^ ";")
-  in "Symbolic Event List:\n[" ^ string_symevt_list se ""  ^ "]\n"
-
-and print_sym_evt (tree: Ast.SymbolicEvent.t) = 
-  match tree with 
-  | Ast.SymbolicEvent.SymbolicEvent(x) -> " label: " ^ x.label.name ^ ", value: " ^ x.payload.name
-  | Ast.SymbolicEvent.Any -> "any"*)
-
-let rec print_evt (tree:Ast.Expression.t)  =
+let rec print_evt (tree:Ast.Expression.t): string  =
   let inside_exp_to_string tree = match tree with
       | Ast.Expression.Identifier(x) -> print_identifier x 
       | Ast.Expression.Literal(x) -> print_literal x 
       | Ast.Expression.BinaryExp(x) -> print_bin_exp x 
       | Ast.Expression.UnaryExp(x) -> "(" ^ (print_unary_exp x) ^ ")" 
+      | Ast.Expression.ExpressionTree(x) -> 
+        let rec concat (ll) (final) = 
+          match ll with
+          | [] -> final
+          | l::[] -> final ^ (print_evt l)
+          | l::ls -> concat ls (final ^ (print_evt l) ^ ", ")
+        in let if_true = concat x.if_true ""
+        in let if_false = concat x.if_false ""
+        in "(" ^ print_evt x.cond ^ ") [true: " ^ if_true ^ "] [false: " ^ if_false ^ "]" 
   in inside_exp_to_string tree 
 
 and print_identifier (id: Ast.Identifier.t): string =
@@ -194,13 +192,6 @@ and print_unary_exp (tree: Ast.Expression.UnaryExp.t): string =
     | Not -> "!"
   in str_un_oper tree.operator ^ print_evt tree.arg
 
-(*let rec pretty_print_evt_list (se: Ast.Expression.t list) =
-  let rec string_symevt_list symevt out = match symevt with
-      [] -> out
-    | [s] -> (out ^ print_evt s)
-    | s::ss -> string_symevt_list ss (out ^ print_evt s ^ ";\n")
-  in "Event List:\n[" ^ string_symevt_list se ""  ^ "]\n"
-*)
 let rec pretty_print_evt_list (se: Ast.Expression.t list) =
   let rec string_symevt_list symevt out = match symevt with
       [] -> out
@@ -219,26 +210,15 @@ let rec imageToString i =
   | [] -> ""
   | h :: t -> "[" ^ (rowToString h) ^ "];\n" ^ (imageToString t)
 
-(*to print a list of lists*)
 let pp_my_image s =
   imageToString s
-
-(*let rec print_nested (l: Ast.Expression.t list list): string = 
-  match l with
-  | [] -> ""
-  | x::xs -> "[" ^ (pretty_print_evt_list x) ^ "];\n" ^ (print_nested xs)
-
-let rec pretty_print_sc (l: Ast.Expression.t list list): string = 
-  print_nested l
-*)
 
 let rec pretty_print_monitor_list (monList: Ast.Monitor.t list): string =
   match monList with
     | [] -> ""
     | ml::mls -> print_endline (pretty_print_monitor ml 0); pretty_print_monitor_list mls
 
-
-(*--------------- to print string rep of monitor ---------------------*)
+(*--------------- to print string representation of monitor ---------------------*)
 
 let rec pretty_print_monitor_string input =
   let mon_to_string tree = match tree with
@@ -287,6 +267,7 @@ and print_expression_string tree =
       | Ast.Expression.Literal(x) -> print_literal_string x 
       | Ast.Expression.BinaryExp(x) -> print_bin_exp_string x 
       | Ast.Expression.UnaryExp(x) -> print_unary_exp_string x 
+      | _ -> ""
   in inside_exp_to_string tree 
 
 and print_identifier_string (id: Ast.Identifier.t) =

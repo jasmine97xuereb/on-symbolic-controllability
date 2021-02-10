@@ -155,3 +155,16 @@ let fresh (free_vars: Vars.t): Ast.Identifier.t =
         )
       in generateFrsh ({Ast.Identifier.name = init_f ^ string_of_int(counter)}) counter
 
+(* function to calculate the chain of variables and values of an expression list *)
+(* it is assumed that the expr list is in dnf i.e. each expression in the list is disjuncted *)
+let rec chn (b: Ast.Expression.t): bool = 
+  match b with 
+  | Ast.Expression.BinaryExp(x) -> 
+    if x.operator == Compare || x.operator == Geq || x.operator == Leq || x.operator == Gt || x.operator == Lt
+    then match (x.arg_rt, x.arg_lt) with 
+      | (Ast.Expression.Literal(x), _) -> true
+      | (_, Ast.Expression.Literal(x)) -> true
+      | (_, _) -> (chn x.arg_rt) || (chn x.arg_lt) 
+    else (chn x.arg_rt) || (chn x.arg_lt) 
+  | Ast.Expression.UnaryExp(x) -> chn x.arg
+  | _ -> false

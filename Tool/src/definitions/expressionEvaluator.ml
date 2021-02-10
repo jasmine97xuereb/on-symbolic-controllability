@@ -9,6 +9,7 @@ let rec reduce_expression (exp: Ast.Expression.t): expression_type =
     | Ast.Expression.Literal(x) -> reduce_literal x
     | Ast.Expression.BinaryExp(x) -> reduce_binaryexp x
     | Ast.Expression.UnaryExp(x) -> reduce_unaryexp x 
+    | _ -> ERR("Unknown Expression Type\n")
 
 and reduce_identifier (idt: Ast.Identifier.t): expression_type =
   STRING(idt.name)
@@ -85,7 +86,7 @@ let bound_vars = ref BoundVars.empty
 let mapTVar = ref TVars.empty
   
 let rec substitute_expression (exp: Ast.Expression.t) (y: Ast.Expression.t) (to_sub: Ast.Expression.t): Ast.Expression.t = 
-  let get_val (to_sub:Ast.Expression.t) = 
+  let get_val (to_sub: Ast.Expression.t) = 
     match reduce_expression to_sub  with 
     | INT(x) -> Ast.Expression.Literal(Ast.Literal.Int(x))
     | BOOL(x) -> Ast.Expression.Literal(Ast.Literal.Bool(x))
@@ -101,6 +102,7 @@ let rec substitute_expression (exp: Ast.Expression.t) (y: Ast.Expression.t) (to_
     | Ast.Expression.BinaryExp(x) -> 
       add_binary_condition (substitute_expression x.arg_lt y to_sub) (substitute_expression x.arg_rt y to_sub) x.operator
     | Ast.Expression.UnaryExp(x) -> add_unary_condition (substitute_expression x.arg y to_sub)
+    | Ast.Expression.ExpressionTree(x) -> add_expression_tree (substitute_expression x.cond y to_sub) (List.map (fun x -> substitute_expression x y to_sub) x.if_true) (List.map (fun x -> substitute_expression x y to_sub) x.if_false)
 
 (*substitute all free occurences of tvar by new_tvar*)
 let rec substitute_tvar (mon: Ast.Monitor.t) (monvar: Ast.TVar.t) (new_tvar: Ast.TVar.t): Ast.Monitor.t = 

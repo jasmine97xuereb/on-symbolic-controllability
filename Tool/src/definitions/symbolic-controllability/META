@@ -1,0 +1,13 @@
+# OASIS_START
+# DO NOT EDIT (digest: bb50a5bc655f8601bd351803833b61c4)
+version = "0.1"
+description =
+"A parser and implementation of the definition of Symbolic Controllability proposed by Dr. Adrian Francalanza."
+requires = "utils z3 zarith parsing definitions"
+archive(byte) = "symcontrollability.cma"
+archive(byte, plugin) = "symcontrollability.cma"
+archive(native) = "symcontrollability.cmxa"
+archive(native, plugin) = "symcontrollability.cmxs"
+exists_if = "symcontrollability.cma"
+# OASIS_STOP
+

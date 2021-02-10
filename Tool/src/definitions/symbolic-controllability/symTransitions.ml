@@ -116,10 +116,9 @@ and rule_srec (mon: Ast.Monitor.t) (b: Ast.Expression.t list) (tr_in: Ast.Symbol
     | Ast.Monitor.Recurse(x) -> 
       (match TVars.find_opt x.monvar.tvar !mapTVar with
       | None -> 
+        print_endline("adding to map: " ^ x.monvar.tvar ^ " -> " ^ pretty_print_monitor_list_string [x.consume]);
         mapTVar := TVars.add x.monvar.tvar x.consume !mapTVar; 
         sym_reduce x.consume b tr_in c
       | Some n -> 
         sym_reduce n b tr_in c)
     | _ -> [ERROR ("Incorrect Structure")]
-
-

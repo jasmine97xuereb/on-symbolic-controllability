@@ -1,0 +1,49 @@
+# OASIS_START
+# DO NOT EDIT (digest: 5e65ed1a2f2afadc49b002d4a4894a50)
+# Ignore VCS directories, you can use the same kind of rule outside
+# OASIS_START/STOP if you want to exclude directories that contains
+# useless stuff for the build process
+true: annot, bin_annot
+<**/.svn>: -traverse
+<**/.svn>: not_hygienic
+".bzr": -traverse
+".bzr": not_hygienic
+".hg": -traverse
+".hg": not_hygienic
+".git": -traverse
+".git": not_hygienic
+"_darcs": -traverse
+"_darcs": not_hygienic
+# Library utils
+"src/utils/utils.cmxs": use_utils
+# Library parsing
+"src/parsing/parsing.cmxs": use_parsing
+<src/parsing/*.ml{,i,y}>: use_utils
+# Library definitions
+"src/definitions/definitions.cmxs": use_definitions
+<src/definitions/*.ml{,i,y}>: use_parsing
+<src/definitions/*.ml{,i,y}>: use_utils
+# Library symcontrollability
+"src/definitions/symbolic-controllability/symcontrollability.cmxs": use_symcontrollability
+<src/definitions/symbolic-controllability/*.ml{,i,y}>: pkg_z3
+<src/definitions/symbolic-controllability/*.ml{,i,y}>: pkg_zarith
+<src/definitions/symbolic-controllability/*.ml{,i,y}>: use_definitions
+<src/definitions/symbolic-controllability/*.ml{,i,y}>: use_parsing
+<src/definitions/symbolic-controllability/*.ml{,i,y}>: use_utils
+# Executable main
+<src/main.{native,byte}>: oasis_executable_main_cclib
+<src/main.{native,byte}>: pkg_str
+<src/main.{native,byte}>: pkg_z3
+<src/main.{native,byte}>: pkg_zarith
+<src/main.{native,byte}>: use_definitions
+<src/main.{native,byte}>: use_parsing
+<src/main.{native,byte}>: use_symcontrollability
+<src/main.{native,byte}>: use_utils
+<src/*.ml{,i,y}>: pkg_str
+<src/*.ml{,i,y}>: pkg_z3
+<src/*.ml{,i,y}>: pkg_zarith
+<src/*.ml{,i,y}>: use_definitions
+<src/*.ml{,i,y}>: use_parsing
+<src/*.ml{,i,y}>: use_symcontrollability
+<src/*.ml{,i,y}>: use_utils
+# OASIS_STOP
