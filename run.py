@@ -23,13 +23,10 @@ def RunToolOnce(mon):
   try: 
     usage_start = resource.getrusage(resource.RUSAGE_CHILDREN)
     subprocess.run(["./Tool/main.native"] + [mon], env=my_env, stderr=subprocess.STDOUT, timeout=36000) 
-    # subprocess.run(["./Tool/main.native"] + [mon], env=my_env, stderr=subprocess.STDOUT) 
     usage_end = resource.getrusage(resource.RUSAGE_CHILDREN)
     time = usage_end.ru_utime - usage_start.ru_utime
   except:
-    # time = None
-    time=float("inf")
-#   print(time)
+    time=np.nan
   return time
 
 # run the tool a number of times
@@ -37,58 +34,49 @@ def RunToolOnce(mon):
 # clean the dataframe and return the mean running time
 def GetData(mon):
   time_arr = []
-  # df = pd.DataFrame(columns=['Time'])
-  return RunToolOnce(mon)
-  # for i in range (0, 3):
-    # time_arr.append(RunToolOnce(mon))
-  # df['Time'] = time_arr
-  # return GetMean(df)
+  df = pd.DataFrame(columns=['Time'])
+  for i in range (0, 3):
+    print("running", i)
+    t = RunToolOnce(mon) 
+    # print(t)
+    time_arr.append(t)
+    if np.isnan(t):
+      break     
+  df['Time'] = time_arr
+  return GetMean(df)
 
 # get the list of generated monitors
 # specify the required number of repetitions by passing this value as a parameter
 # run generate.py
 # get the tool's mean running time for each monitor in the list
 # returns a record with the mean running time for complexity 'repetition'
-def AnalyseMonitors(repetition):
+def AnalyseMonitors(complexity, results):
   time_record = []  
-  output = os.popen("python generate.py "+str(repetition)).read()
+  output = os.popen("python generate.py "+str(complexity)).read()
   mon_arr = (output.splitlines())
-#   print(output)
   for mon in mon_arr:
     print("Monitor being Analysed: ", mon)
-    time_record.append(float(GetData(mon)))
+    i = mon_arr.index(mon) #column of the current monitor in results
+    if complexity>1:
+      prev_run = results.iloc[complexity-2][i]
+      if np.isnan(prev_run):
+        time_record.append(np.nan)
+      else:    
+        time_record.append(float(GetData(mon)))
+    else: 
+      time_record.append(float(GetData(mon)))
   return time_record
 
 def UpToComplexity(complexity):  
-  # results = pd.DataFrame(columns=['Choice','NestedIFs','Recursion'])
-  # results = pd.DataFrame(columns=['Choice','Recursion'])
-  results = pd.DataFrame(columns=['NestedfIFs'])
+  results = pd.DataFrame(columns=['Cnd','Rec','Brc','Inf','Fail','Rch'])
 
   for i in range (1, complexity+1):
     print("For complexity ", i)
-    record = AnalyseMonitors(i)
-    print(record)
+    record = AnalyseMonitors(i, results)
     results.loc[len(results)] = record
   results.index += 1 
   return results
 
-def ComplexitySteps(complexity):  
-  # results = pd.DataFrame(columns=['Choice','NestedIFs','Recursion'])
-  # results = pd.DataFrame(columns=['Choice','Recursion'])
-  results = pd.DataFrame(columns=['NestedfIFs'])
-
-  for i in complexity:
-    print("For complexity ", i)
-    record = AnalyseMonitors(i)
-    print(record)
-    results.loc[len(results)] = record
-  results.index += 1 
-  return results
-
-# def Plot(df):
-
-
-results = UpToComplexity(7)
+results = UpToComplexity(15)
 print(results)
 # results.to_csv("RunningTimes.csv")
-# Plot(results)
