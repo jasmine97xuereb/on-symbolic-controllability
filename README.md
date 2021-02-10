@@ -1,1 +1,0 @@
-# on-symbolic-controllability
