@@ -91,10 +91,10 @@ python run.py
 The mean running time over 3 repeated runs is calculated for each.  -->
 This will automatically run the system set-up with generated monitor descriptions and calculate the mean running time (over 3 repeated runs). 
 
-The experiment is repeated for incremental size and complexity for each of the three templates in [generate.py](https://github.com/jasmine97xuereb/sym-cont/blob/master/generate.py), starting at n=1 up to n=15.
+The experiment is repeated for incremental size and complexity for each of the six templates in [generate.py](https://github.com/jasmine97xuereb/sym-cont/blob/master/generate.py), starting at n=1 up to n=15.
 Each run has a predefined time threshold of 10 hours, which if overcame, the run is terminated. 
 
-This will produce a CSV file with 3 columns (one for each monitor template) and 15 rows (for incremental size and complexity). 
+This will produce a CSV file with 6 columns (one for each monitor template) and 15 rows (for incremental size and complexity). 
 Each reading represents the corresponding mean running time. 
 
 <!-- ## Authors
