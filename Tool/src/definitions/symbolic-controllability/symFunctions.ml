@@ -314,32 +314,36 @@ let rec print_components (comp: (Ast.Expression.t list * Vars.t) list) =
 (* function connected checks whether e is connected to any other that is already in comp*)
 (*  if is connected, merge it *)
 (*  else add a new component *)
-
 let rec get_components (b: Ast.Expression.t list) (comp: (Ast.Expression.t list * Vars.t) list): (Ast.Expression.t list * Vars.t) list =
-  let rec connected (e: Ast.Expression.t) (v: Vars.t) (comp: (Ast.Expression.t list * Vars.t) list): (Ast.Expression.t list * Vars.t) list =
-    (match comp with
-    | [] -> [[e], v]
-    | c::cs -> 
-      if Vars.is_empty (Vars.inter (snd c) v)
-      then [c] @ (connected e v cs)
-      else [[e] @ (fst c), Vars.union (snd c) v] @ cs
-    )
-    in match b with 
-    | [] -> comp
-    | b::bs -> 
-      let rec inner_comp (b: Ast.Expression.t) (comp: (Ast.Expression.t list * Vars.t) list) = 
-        match b with 
-        | Ast.Expression.BinaryExp(x) -> 
-          (match x.operator with 
-          | Ast.Expression.BinaryExp.And -> inner_comp x.arg_rt (inner_comp x.arg_lt comp)
-          | _ -> connected b (fv ([x.arg_lt], []) Vars.empty) comp
-          )
-        | _ -> connected b (fv ([b], []) Vars.empty) comp
-      in get_components bs (inner_comp b comp)
+  match b with 
+  | [] -> comp
+  | b::bs ->
+    let v = fv ([b], []) Vars.empty
+      in 
+      let rec connected (e: Ast.Expression.t) (comp: (Ast.Expression.t list * Vars.t) list): (Ast.Expression.t list * Vars.t) list = 
+        match comp with
+        | [] -> [([e], v)]
+        | c::cs -> 
+          if Vars.is_empty (Vars.inter (snd c) v)
+          then [c] @ (connected e cs)
+          else [[e] @ (fst c), Vars.union (snd c) v] @ cs
+      in get_components bs (connected b comp)
 
+let rec get_components_v (b: Ast.Expression.t list) (v: Vars.t) (comp: (Ast.Expression.t list * Vars.t) list): (Ast.Expression.t list * Vars.t) list =
+  match b with 
+  | [] -> comp
+  | b::bs ->
+    let b_v = fv ([b], []) Vars.empty
+      in let rec connected (e: Ast.Expression.t) (comp: (Ast.Expression.t list * Vars.t) list): (Ast.Expression.t list * Vars.t) list = 
+      match comp with
+      | [] -> [([e], b_v)]
+      | c::cs -> 
+        if Vars.subset (Vars.inter (snd c) b_v) v
+        then [c] @ (connected e cs)
+        else [[e] @ (fst c), Vars.union (snd c) b_v] @ cs
+        in get_components_v bs v (connected b comp)
+          
 (* discard all the components that do not have any free variables in common with v *)
-(* this is in a way equivalent to prt *)
-
 let prt (comp: (Ast.Expression.t list * Vars.t) list) (v: Vars.t): (Ast.Expression.t list * Vars.t) list =
   let rec filter_components (comp: (Ast.Expression.t list * Vars.t) list): (Ast.Expression.t list * Vars.t) list =
     match comp with 
@@ -350,40 +354,46 @@ let prt (comp: (Ast.Expression.t list * Vars.t) list) (v: Vars.t): (Ast.Expressi
       else [c] @ (filter_components cs)
     
     in let fc = filter_components comp
-      in 
-      print_all_messages ("Components after filtering are: ");
+      in print_all_messages ("Components after filtering are: ");
       print_components fc;
       fc
 
-(* function to simplify the boolean conditions *)
-(* convert each component into dnf *)
-(* for each component ck = d1 \/ ... \/ dn discard ck if either i. or ii. *)
-(*  i. exists di s.t. chn(di) inter V = { }  *)
-(*  ii. for all i in [n] . value not in chn(di) and chn(di) inter V = {x} (i.e. singleton) *)
+let rec clause1 (comp: (Ast.Expression.t list * Vars.t) ) (v: Vars.t): (Ast.Expression.t list * Vars.t) =
+  let dnf = exp_list_to_dnf (fst comp) in 
+  print_endline("dnf is " ^ pretty_print_evt_list dnf);
+  if List.exists (fun d -> (Vars.is_empty (Vars.inter v (fv ([d], []) Vars.empty))) && fst (sat [d])) (dnf)
+  then ([],Vars.empty)
+  else comp
 
-let smp (comp: (Ast.Expression.t list * Vars.t) list) (v: Vars.t): (Ast.Expression.t list * Vars.t) list =
-  let rec filter_components (comp: (Ast.Expression.t list * Vars.t) list): (Ast.Expression.t list * Vars.t) list =
-    let rec inner_filter (c: (Ast.Expression.t list * Vars.t)): (Ast.Expression.t list * Vars.t) list =
-      (* convert the component to DNF form *)
-      let dnf_comp = exp_list_to_dnf (fst c) in
-      let f_comp = snd c in
-      (* returns true if at least one of the expression does not have free vars in common with v *)
-      if List.exists (fun d -> (Vars.is_empty (Vars.inter v (fv ([d], []) Vars.empty))) && fst (sat [d])) dnf_comp
-      then []
-      else
-        (* returns true if none of the expressions have some concrete value and v inter fv of componenent is a singleton *)
-        if (List.length (Vars.elements (Vars.inter v f_comp)) == 1) && (List.exists (fun d -> (not (chn d)) && fst (sat [d])) dnf_comp)
-        then []
-        else [c] 
-      in match comp with 
-      | [] -> []
-      | c::cs -> inner_filter c @ filter_components cs
+let rec clause2 (comp: (Ast.Expression.t list * Vars.t)) (v: Vars.t): (Ast.Expression.t list * Vars.t) =
+  let dnf = exp_list_to_dnf (fst comp) in 
+  if List.exists (fun d -> 
+    let inter = (Vars.elements (Vars.inter v (fv ([d], []) Vars.empty))) in
+    if List.length inter == 1 then (uch (List.hd inter) d) && fst (sat [d])
+    else false
+  ) dnf
+  then ([],Vars.empty)
+  else comp
 
-    in filter_components comp
-
+let rec smp (b: (Ast.Expression.t list * Vars.t) list) (v: Vars.t): (Ast.Expression.t list * Vars.t) list =
+  let rec filter_components (b: (Ast.Expression.t list * Vars.t) list): (Ast.Expression.t list * Vars.t) list =
+    let rec inner_filter (c: (Ast.Expression.t list * Vars.t)): (Ast.Expression.t list * Vars.t)  =
+      let after_c1 = clause1 c v in
+      let after_c2 = clause2 after_c1 v in 
+      after_c2
+    
+    in match b with 
+    | [] -> []
+    | c::cs -> [inner_filter c] @ filter_components cs
+    
+  in match b with 
+  | [] -> []
+  | b::bs -> 
+    let c = get_components_v (fst b) v [] in 
+    print_components c;
+    (filter_components c) @ (smp bs v)
 
 let cns (b: Ast.Expression.t list) (mon_list: Ast.Monitor.t list): Ast.Expression.t list =
-  (* V = fv(saft(M, B, $)) *)
   let v = fv ([], mon_list) Vars.empty  
     in print_all_messages("free V: ");
     print_all (Vars.elements v);   
@@ -392,7 +402,8 @@ let cns (b: Ast.Expression.t list) (mon_list: Ast.Monitor.t list): Ast.Expressio
     if Vars.is_empty v 
     then []
     else (
-      let components = get_components b []
+      let b_list = split_and b in
+      let components = get_components b_list []
         in print_all_messages("All components are: ");
         print_components components;
         let fc = prt components v
