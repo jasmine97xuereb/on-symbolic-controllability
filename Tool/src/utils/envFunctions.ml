@@ -20,6 +20,16 @@ let compare_values (v1: expression_type) (v2: expression_type): bool =
     | BOOL(v1), BOOL(v2) -> v1 = v2
     | _, _ -> false
 
+let compare_expressions (e1: Ast.Expression.t) (e2: Ast.Expression.t): bool =
+  match e1, e2 with
+    | Ast.Expression.Identifier(x), Ast.Expression.Identifier(y) -> x.name = y.name
+    | _ -> false   
+    
+let is_literal (e: Ast.Expression.t) = 
+  match e with
+  | Ast.Expression.Literal(z) -> true
+  | _ -> false
+  
 let rec element_exists_in_list l e : bool =
   match l with
     | l::ls -> if (l == e)
@@ -274,3 +284,17 @@ let rec and_list (l: Ast.Expression.t list): Ast.Expression.t  =
   | [] -> Ast.Expression.Literal(Ast.Literal.Bool(true))
   | x::[] -> x
   | x::xs -> add_binary_condition x (and_list xs) op
+
+(* function to iterate through a list of boolean conditions and split b1 ^ b2 into b1 and b2 *)
+let rec split_and (b: Ast.Expression.t list): Ast.Expression.t list = 
+  let rec inner_split (b: Ast.Expression.t): Ast.Expression.t list = 
+    match b with 
+    | Ast.Expression.BinaryExp(x) -> ( 
+      match x.operator with
+      | And -> (inner_split x.arg_lt) @ (inner_split x.arg_rt)
+      | _ -> [b] )
+    | _ -> [b]
+  in match b with
+  | [] -> [] 
+  | b::[] -> inner_split b
+  | b::bs -> (inner_split b) @ (split_and bs) 

@@ -155,16 +155,63 @@ let fresh (free_vars: Vars.t): Ast.Identifier.t =
         )
       in generateFrsh ({Ast.Identifier.name = init_f ^ string_of_int(counter)}) counter
 
-(* function to calculate the chain of variables and values of an expression list *)
-(* it is assumed that the expr list is in dnf i.e. each expression in the list is disjuncted *)
-let rec chn (b: Ast.Expression.t): bool = 
+(* find the binary expression in b containing var_uch *)
+(* return a pair with the first element being the part containing the var and the second element the remainder of the boolean expression *)
+let rec fetch_x (var_uch: Ast.Identifier.t) (b: Ast.Expression.t list) (rem: Ast.Expression.t list): (Ast.Expression.t list * Ast.Expression.t list) = 
+  let x = create_exp_identifier var_uch.name in
   match b with 
-  | Ast.Expression.BinaryExp(x) -> 
-    if x.operator == Compare || x.operator == Geq || x.operator == Leq || x.operator == Gt || x.operator == Lt
-    then match (x.arg_rt, x.arg_lt) with 
-      | (Ast.Expression.Literal(x), _) -> true
-      | (_, Ast.Expression.Literal(x)) -> true
-      | (_, _) -> (chn x.arg_rt) || (chn x.arg_lt) 
-    else (chn x.arg_rt) || (chn x.arg_lt) 
-  | Ast.Expression.UnaryExp(x) -> chn x.arg
-  | _ -> false
+  | [] -> ([], rem)
+  | b::bs -> (
+
+    (* check if binary sub-expression y contains var x *)
+    (* otherwise fetch x in the remaineder of the boolean expression *)
+    let check_binary (y: Ast.Expression.BinaryExp.t ) = 
+      let uch_rem = (fetch_x var_uch bs rem) in
+      if (compare_expressions y.arg_lt x) then ([y.arg_rt] @ (fst uch_rem), rem @ ((snd uch_rem)))
+      else if (compare_expressions y.arg_rt x) then ([y.arg_lt] @ (fst uch_rem), rem @ (snd uch_rem)) 
+      else fetch_x var_uch bs (rem @ [b]);
+    
+    in match b with 
+    | Ast.Expression.BinaryExp(y) -> (
+        match y.operator with 
+        | Compare -> check_binary y 
+        | Leq -> check_binary y
+        | Geq -> check_binary y
+        | Lt -> check_binary y
+        | Gt -> check_binary y
+        | _ -> ([],[]) ) 
+    | Ast.Expression.UnaryExp(y) -> fetch_x var_uch [y.arg] []
+    | _ -> ([],[])
+  )
+
+(* function that checks whether boolean expression b contains an unfounded chain for var_uch *)
+let rec uch (var_uch: Ast.Identifier.t) (b: Ast.Expression.t): bool = 
+  let rec inner_uch (var_uch: Ast.Identifier.t) (b: Ast.Expression.t list) (v: Vars.t): bool = 
+    if Vars.is_empty (Vars.inter v (Vars.singleton var_uch))
+    then helper_uch var_uch b v
+    else false 
+
+  and helper_uch (var_uch: Ast.Identifier.t) (b: Ast.Expression.t list) (v: Vars.t) = 
+    let result = fetch_x var_uch b []
+      in match (fst result) with
+      | [] -> true
+      | _ -> 
+        (
+          if List.exists (fun y -> is_literal y) (fst result)
+          then false 
+          else(
+            (* none of the expressions contain any value *)
+            let free = fv ((fst result), []) Vars.empty in 
+            (* check all possible chains *)
+            let rec check_all (free: Ast.Identifier.t list) = 
+              match free with
+              | [] -> true
+              | x::xs -> 
+                if (inner_uch x (snd result) ( Vars.union v (Vars.singleton var_uch) ))
+                then check_all xs
+                else false
+            in check_all (Vars.elements free)
+          )
+        )
+  
+  in inner_uch var_uch (split_and [b]) Vars.empty
